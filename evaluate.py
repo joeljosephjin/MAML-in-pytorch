@@ -57,20 +57,13 @@ def evaluate(model, loss_fn, meta_classes, task_lr, task_type, metrics, args,
         Y_que = Y_que.data.cpu().numpy()
 
         # compute all metrics on this batch
-        summary_batch = {
-            metric: metrics[metric](Y_que_hat, Y_que)
-            for metric in metrics
-        }
+        summary_batch = {metric: metrics[metric](Y_que_hat, Y_que) for metric in metrics}
         summary_batch['loss'] = loss.item()
         summ.append(summary_batch)
 
     # compute mean of all metrics in summary
-    metrics_mean = {
-        metric: np.mean([x[metric] for x in summ])
-        for metric in summ[0]
-    }
-    metrics_string = " ; ".join(
-        "{}: {:05.3f}".format(k, v) for k, v in metrics_mean.items())
+    metrics_mean = {metric: np.mean([x[metric] for x in summ]) for metric in summ[0]}
+    metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in metrics_mean.items())
 
     return metrics_mean
 
