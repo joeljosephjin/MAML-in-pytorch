@@ -32,8 +32,7 @@ def evaluate(model, loss_fn, meta_classes, task_lr, task_type, metrics, args,
         # Make dataloaders to load support set and query set
         task = task_type(meta_classes, args.num_classes, args.num_samples, args.num_query)
         dataloaders = fetch_dataloaders(['train', 'test'], task)
-        dl_sup = dataloaders['train']
-        dl_que = dataloaders['test']
+        dl_sup, dl_que = dataloaders['train'], dataloaders['test']
         X_sup, Y_sup = dl_sup.__iter__().next()
         X_que, Y_que = dl_que.__iter__().next()
 
@@ -53,8 +52,7 @@ def evaluate(model, loss_fn, meta_classes, task_lr, task_type, metrics, args,
         loss = loss_fn(Y_que_hat, Y_que)
 
         # extract data from torch Variable, move to cpu, convert to numpy arrays
-        Y_que_hat = Y_que_hat.data.cpu().numpy()
-        Y_que = Y_que.data.cpu().numpy()
+        Y_que_hat, Y_que = Y_que_hat.data.cpu().numpy(), Y_que.data.cpu().numpy()
 
         # compute all metrics on this batch
         summary_batch = {metric: metrics[metric](Y_que_hat, Y_que) for metric in metrics}
@@ -66,8 +64,3 @@ def evaluate(model, loss_fn, meta_classes, task_lr, task_type, metrics, args,
     metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in metrics_mean.items())
 
     return metrics_mean
-
-
-if __name__ == '__main__':
-    # TODO Evaluate trained model.
-    pass
