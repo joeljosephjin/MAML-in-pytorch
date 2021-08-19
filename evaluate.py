@@ -6,7 +6,7 @@ from collections import OrderedDict
 from data.dataloader import fetch_dataloaders
 
 
-def evaluate(model, loss_fn, meta_classes, task_lr, task_type, metrics, args,
+def evaluate(model, loss_fn, meta_classes, task_lr, task_type, args,
              split):
     """
     Evaluate the model on `num_steps` batches.
@@ -24,12 +24,12 @@ def evaluate(model, loss_fn, meta_classes, task_lr, task_type, metrics, args,
                         'test' if evaluate on 'meta-testing' TODO 'meta-validating'
     """
     # summary for current eval loop
-    summ = []
+    losses = []
+    accs = []
 
     # compute metrics over the dataset
     for episode in range(args.num_steps):
         # Make a single task
-        # Make dataloaders to load support set and query set
         task = task_type(meta_classes, args.num_classes, args.num_samples, args.num_query)
         dataloaders = fetch_dataloaders(['train', 'test'], task)
         dl_sup, dl_que = dataloaders['train'], dataloaders['test']
@@ -54,12 +54,11 @@ def evaluate(model, loss_fn, meta_classes, task_lr, task_type, metrics, args,
         # extract data from torch Variable, move to cpu, convert to numpy arrays
         Y_que_hat, Y_que = Y_que_hat.data.cpu().numpy(), Y_que.data.cpu().numpy()
 
-        # compute all metrics on this batch
-        summary_batch = {metric: metrics[metric](Y_que_hat, Y_que) for metric in metrics}
-        summary_batch['loss'] = loss.item()
-        summ.append(summary_batch)
+        losses.append(loss.item())
+        accs.append(accuracy(Y_que_hat, Y_que))
 
-    # compute mean of all metrics in summary
-    metrics_mean = {metric: np.mean([x[metric] for x in summ]) for metric in summ[0]}
+    return np.mean(losses), np.mean(accs)
 
-    return metrics_mean
+def accuracy(outputs, labels):
+    outputs = np.argmax(outputs, axis=1)
+    return np.sum(outputs == labels) / float(labels.size)

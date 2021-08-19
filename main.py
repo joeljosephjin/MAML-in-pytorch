@@ -4,11 +4,8 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
-from tqdm import tqdm
 from model import MetaLearner
 from model import Net
-from model import metrics
 from data.dataloader import split_omniglot_characters
 from data.dataloader import load_imagenet_images
 from data.dataloader import OmniglotTask
@@ -112,17 +109,12 @@ def train_and_evaluate(model,
         # Evaluate model on new task
         # Evaluate on train and test dataset given a number of tasks (args.num_steps)
         if (episode + 1) % args.save_summary_steps == 0:
-            train_metrics = evaluate(model, loss_fn, meta_train_classes,
-                                        task_lr, task_type, metrics, args,
-                                        'train')
-            test_metrics = evaluate(model, loss_fn, meta_test_classes,
-                                    task_lr, task_type, metrics, args,
+            train_loss, train_acc = evaluate(model, loss_fn, meta_train_classes,
+                            task_lr, task_type, args,
+                            'train')
+            test_loss, test_acc = evaluate(model, loss_fn, meta_test_classes,
+                                    task_lr, task_type, args,
                                     'test')
-
-            train_loss = train_metrics['loss']
-            test_loss = test_metrics['loss']
-            train_acc = train_metrics['accuracy']
-            test_acc = test_metrics['accuracy']
 
             wandb.log({"episode":episode, "test_acc":test_acc, "train_acc":train_acc,\
                         "test_loss":test_loss,"train_loss":train_loss})
@@ -141,8 +133,6 @@ if __name__ == '__main__':
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
-    # NOTE These params are only applicable to pre-specified model architecture.
-    # Split meta-training and meta-testing characters
     if 'Omniglot' in args.data_dir and args.dataset == 'Omniglot':
         args.in_channels = 1
         meta_train_classes, meta_test_classes = split_omniglot_characters(args.data_dir, args.seed)
@@ -156,12 +146,8 @@ if __name__ == '__main__':
 
     # Define the model and optimizer
     model = MetaLearner(args).to(args.device)
-
     meta_optimizer = torch.optim.Adam(model.parameters(), lr=args.meta_lr)
-
-    # fetch loss function and metrics
     loss_fn = nn.NLLLoss()
-    model_metrics = metrics
 
     # Train the model
     train_and_evaluate(model, meta_train_classes, meta_test_classes, task_type, meta_optimizer, loss_fn, args)
