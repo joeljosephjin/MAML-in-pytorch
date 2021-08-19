@@ -13,6 +13,9 @@ from data.dataloader import OmniglotTask
 from data.dataloader import ImageNetTask
 from data.dataloader import fetch_dataloaders
 from evaluate import evaluate
+from evaluate import accuracy
+
+import numpy as np
 
 import wandb
 from time import time
@@ -38,28 +41,19 @@ parser.add_argument('--save_summary_steps',default=100, type=int)
 parser.add_argument('--num_workers',default=1, type=int)
 
 
-def train_and_evaluate(model,
+def train_and_evaluate(models,
                        meta_train_classes,
                        meta_test_classes,
                        task_type,
                        meta_optimizer,
                        loss_fn,
                        args):
-    """
-    Train the model and evaluate every `save_summary_steps`.
-
-    Args:
-        model: (MetaLearner) a meta-learner for MAML algorithm
-        meta_train_classes: (list) the classes for meta-training
-        meta_train_classes: (list) the classes for meta-testing
-        task_type: (subclass of FewShotTask) a type for generating tasks
-        meta_optimizer: (torch.optim) an meta-optimizer for MetaLearner
-        loss_fn: a loss function
-        args: (args) hyperparameters
-    TODO Validation classes
-    """
-
     wandb.init(project='metadrop-pytorch', entity='joeljosephjin', config=vars(args))
+
+    model = models['model']
+    if args.phi:
+        phi_net = models['phi_net']
+        phi_optimizer = models['phi_optimizer']
 
     # params information
     num_classes = args.num_classes
@@ -71,9 +65,8 @@ def train_and_evaluate(model,
 
     for episode in range(args.num_episodes):
         # Run inner loops to get adapted parameters (theta_t`)
-        adapted_state_dicts = []
-        dataloaders_list = []
         meta_loss = 0
+        accs = []
         for n_task in range(num_inner_tasks):
             task = task_type(meta_train_classes, num_classes, num_samples, num_query)
             dataloaders = fetch_dataloaders(['train', 'test', 'meta'], task)
@@ -82,10 +75,15 @@ def train_and_evaluate(model,
             X_sup, Y_sup = dl_sup.__iter__().next()
             X_sup, Y_sup = X_sup.to(args.device), Y_sup.to(args.device)
 
-            adapted_params, adapted_state_dict = model.cloned_state_dict()  # NOTE what about just dict
+            adapted_params, adapted_state_dict = model.cloned_state_dict()
+            if args.phi:
+                phi_adapted_params, phi_adapted_state_dict = phi_net.cloned_state_dict()
 
             for _ in range(0, args.num_train_updates):
-                Y_sup_hat = model(X_sup, adapted_state_dict)
+                if args.phi:
+                    Y_sup_hat = model(X_sup, adapted_state_dict, phi_adapted_state_dict)
+                else:
+                    Y_sup_hat = model(X_sup, adapted_state_dict)
                 loss = loss_fn(Y_sup_hat, Y_sup)
 
                 grads = torch.autograd.grad(loss, adapted_params.values(), create_graph=True)
@@ -97,15 +95,23 @@ def train_and_evaluate(model,
             X_meta, Y_meta = dl_meta.__iter__().next()
             X_meta, Y_meta = X_meta.to(args.device), Y_meta.to(args.device)
 
-            Y_meta_hat = model(X_meta, adapted_state_dict)
+            if args.phi:
+                Y_meta_hat = model(X_meta, adapted_state_dict, phi_adapted_state_dict)
+            else:
+                Y_meta_hat = model(X_meta, adapted_state_dict)
+            accs.append(accuracy(Y_meta_hat.data.cpu().numpy(), Y_meta.data.cpu().numpy()))
             loss_t = loss_fn(Y_meta_hat, Y_meta)
             meta_loss += loss_t
             
         meta_loss /= float(num_inner_tasks)
 
         meta_optimizer.zero_grad()
+        if args.phi:
+            phi_optimizer.zero_grad()
         meta_loss.backward()
         meta_optimizer.step()
+        if args.phi:
+            phi_optimizer.step()
 
         # Evaluate model on new task
         # Evaluate on train and test dataset given a number of tasks (args.num_steps)
@@ -119,8 +125,8 @@ def train_and_evaluate(model,
 
             wandb.log({"episode":episode, "test_acc":test_acc, "train_acc":train_acc,\
                         "test_loss":test_loss,"train_loss":train_loss})
-            print('episode: {:0.2f}, test_acc: {:0.2f}, train_acc: {:0.2f}, time: {:0.2f}, test_loss: {:0.2f}, train_loss: {:0.2f}'\
-                    .format(episode, test_acc,train_acc, time()-start_time,test_loss,train_loss))
+            print('episode: {:0.2f}, acc: {:0.2f}, test_acc: {:0.2f}, train_acc: {:0.2f}, time: {:0.2f}, test_loss: {:0.2f}, train_loss: {:0.2f}'\
+                    .format(episode, np.mean(accs), test_acc, train_acc, time()-start_time, test_loss, train_loss))
             start_time = time()
 
 if __name__ == '__main__':
@@ -143,11 +149,17 @@ if __name__ == '__main__':
         raise ValueError("I don't know your dataset")
 
     model = MetaLearner(args).to(args.device)
-    args.phi = True
-    if args.phi:
-        phi_net = phiNet(args.in_channels, args.num_classes, dataset=args.dataset)
-
-    meta_optimizer = torch.optim.Adam(model.parameters(), lr=args.meta_lr)
     loss_fn = nn.NLLLoss()
 
-    train_and_evaluate(model, meta_train_classes, meta_test_classes, task_type, meta_optimizer, loss_fn, args)
+    args.phi = False
+
+    meta_optimizer = torch.optim.Adam(model.parameters(), lr=args.meta_lr)
+
+    if args.phi:
+        phi_net = phiNet(args.in_channels, args.num_classes, dataset=args.dataset).to(args.device)
+        phi_optimizer = torch.optim.Adam(phi_net.parameters(), lr=args.meta_lr)
+        models = {'model':model, 'phi_net':phi_net, 'phi_optimizer':phi_optimizer}
+    else:
+        models = {'model':model}
+
+    train_and_evaluate(models, meta_train_classes, meta_test_classes, task_type, meta_optimizer, loss_fn, args)

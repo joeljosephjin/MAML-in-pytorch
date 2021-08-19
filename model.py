@@ -4,6 +4,7 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions.normal import Normal
 import numpy as np
 
 N_FILTERS = 64  # number of filters used in conv_block
@@ -21,11 +22,8 @@ class MetaLearner(nn.Module):
         # self.phi_net = phiNet(
         #     args.in_channels, args.num_classes, dataset=args.dataset)
 
-    def forward(self, X, adapted_params=None):
-        if adapted_params == None:
-            out = self.meta_learner(X)
-        else:
-            out = self.meta_learner(X, adapted_params)
+    def forward(self, X, adapted_params=None, phi_adapted_params=None):
+        out = self.meta_learner(X, adapted_params, phi_adapted_params)
         return out
 
     def cloned_state_dict(self):
@@ -54,12 +52,12 @@ class Net(nn.Module):
         elif dataset == 'ImageNet':
             self.add_module('fc', nn.Linear(64 * 5 * 5, num_classes))
 
-    def forward(self, X, params=None):
+    def forward(self, X, params=None, phi_params=None):
         if params == None:
             out = self.features(X)
             out = out.view(out.size(0), -1)
             out = self.fc(out)
-        else:
+        elif phi_params == None:
             out = X
             for i in range(4):
                 out = F.conv2d(
@@ -67,8 +65,36 @@ class Net(nn.Module):
                     params['meta_learner.features.%d.conv%d.weight'%(i,i)],
                     params['meta_learner.features.%d.conv%d.bias'%(i,i)],
                     padding=1)
-                # NOTE we do not need to care about running_mean anv var since
-                # momentum=1.
+                out = F.batch_norm(
+                    out,
+                    params['meta_learner.features.%d.bn%d.running_mean'%(i,i)],
+                    params['meta_learner.features.%d.bn%d.running_var'%(i,i)],
+                    params['meta_learner.features.%d.bn%d.weight'%(i,i)],
+                    params['meta_learner.features.%d.bn%d.bias'%(i,i)],
+                    momentum=1,
+                    training=True)
+                out = F.relu(out, inplace=True)
+                out = F.max_pool2d(out, MP_SIZE)
+
+            out = out.view(out.size(0), -1)
+            out = F.linear(out, params['meta_learner.fc.weight'],
+                           params['meta_learner.fc.bias'])
+        else:
+            out = X
+            for i in range(4):
+                mu = F.conv2d(
+                    out,
+                    params['meta_learner.features.%d.conv%d.weight'%(i,i)],
+                    params['meta_learner.features.%d.conv%d.bias'%(i,i)],
+                    padding=1)
+                alpha = F.conv2d(
+                    out,
+                    phi_params['features.%d.conv%d.weight'%(i,i)],
+                    phi_params['features.%d.conv%d.bias'%(i,i)],
+                    padding=1)
+                ones = torch.ones_like(alpha)
+                mult_noise = Normal(alpha, ones).sample()
+                out = mu * mult_noise
                 out = F.batch_norm(
                     out,
                     params['meta_learner.features.%d.bn%d.running_mean'%(i,i)],
@@ -102,6 +128,15 @@ class phiNet(nn.Module):
             self.add_module('fc', nn.Linear(64, num_classes))
         elif dataset == 'ImageNet':
             self.add_module('fc', nn.Linear(64 * 5 * 5, num_classes))
+
+    def cloned_state_dict(self):
+        adapted_state_dict = {key: val.clone() for key, val in self.state_dict().items()}
+        adapted_params = OrderedDict()
+        for key, val in self.named_parameters():
+            adapted_params[key] = val
+            adapted_state_dict[key] = adapted_params[key]
+
+        return adapted_params, adapted_state_dict
 
 def conv_block(index,
                in_channels,
