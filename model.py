@@ -24,6 +24,7 @@ class MetaLearner(nn.Module):
         self.args = args
         self.meta_learner = Net(
             args.in_channels, args.num_classes, dataset=args.dataset)
+        # self.phi = self.meta_learner.phi
 
     def forward(self, X, adapted_params=None):
         if adapted_params == None:
@@ -33,11 +34,13 @@ class MetaLearner(nn.Module):
         return out
 
     def cloned_state_dict(self):
-        cloned_state_dict = {
-            key: val.clone()
-            for key, val in self.state_dict().items()
-        }
-        return cloned_state_dict
+        adapted_state_dict = {key: val.clone() for key, val in self.state_dict().items()}
+        adapted_params = OrderedDict()
+        for key, val in self.named_parameters():
+            adapted_params[key] = val
+            adapted_state_dict[key] = adapted_params[key]
+
+        return adapted_params, adapted_state_dict
 
 
 class Net(nn.Module):
@@ -61,6 +64,10 @@ class Net(nn.Module):
                      difference of input size of 'Omniglot' and 'ImageNet'
         """
         super(Net, self).__init__()
+        self.in_channels = in_channels
+        self.dataset = dataset
+        self.num_classes = num_classes
+        # self.phi = self.get_phi()
         self.features = nn.Sequential(
             conv_block(0, in_channels, padding=1, pooling=True),
             conv_block(1, N_FILTERS, padding=1, pooling=True),
@@ -72,6 +79,20 @@ class Net(nn.Module):
             self.add_module('fc', nn.Linear(64 * 5 * 5, num_classes))
         else:
             raise Exception("I don't know your dataset")
+
+    def get_phi(self):
+        phi = nn.Sequential(
+            conv_block(0, self.in_channels, padding=1, pooling=True),
+            conv_block(1, N_FILTERS, padding=1, pooling=True),
+            conv_block(2, N_FILTERS, padding=1, pooling=True),
+            conv_block(3, N_FILTERS, padding=1, pooling=True))
+        if self.dataset == 'Omniglot':
+            phi.add_module('fc', nn.Linear(64, self.num_classes))
+        elif self.dataset == 'ImageNet':
+            phi.add_module('fc', nn.Linear(64 * 5 * 5, self.num_classes))
+        else:
+            raise Exception("I don't know your dataset")
+        return phi
 
     def forward(self, X, params=None):
         """
@@ -89,71 +110,25 @@ class Net(nn.Module):
             """
             The architecure of functionals is the same as `self`.
             """
-            out = F.conv2d(
-                X,
-                params['meta_learner.features.0.conv0.weight'],
-                params['meta_learner.features.0.conv0.bias'],
-                padding=1)
-            # NOTE we do not need to care about running_mean anv var since
-            # momentum=1.
-            out = F.batch_norm(
-                out,
-                params['meta_learner.features.0.bn0.running_mean'],
-                params['meta_learner.features.0.bn0.running_var'],
-                params['meta_learner.features.0.bn0.weight'],
-                params['meta_learner.features.0.bn0.bias'],
-                momentum=1,
-                training=True)
-            out = F.relu(out, inplace=True)
-            out = F.max_pool2d(out, MP_SIZE)
-
-            out = F.conv2d(
-                out,
-                params['meta_learner.features.1.conv1.weight'],
-                params['meta_learner.features.1.conv1.bias'],
-                padding=1)
-            out = F.batch_norm(
-                out,
-                params['meta_learner.features.1.bn1.running_mean'],
-                params['meta_learner.features.1.bn1.running_var'],
-                params['meta_learner.features.1.bn1.weight'],
-                params['meta_learner.features.1.bn1.bias'],
-                momentum=1,
-                training=True)
-            out = F.relu(out, inplace=True)
-            out = F.max_pool2d(out, MP_SIZE)
-
-            out = F.conv2d(
-                out,
-                params['meta_learner.features.2.conv2.weight'],
-                params['meta_learner.features.2.conv2.bias'],
-                padding=1)
-            out = F.batch_norm(
-                out,
-                params['meta_learner.features.2.bn2.running_mean'],
-                params['meta_learner.features.2.bn2.running_var'],
-                params['meta_learner.features.2.bn2.weight'],
-                params['meta_learner.features.2.bn2.bias'],
-                momentum=1,
-                training=True)
-            out = F.relu(out, inplace=True)
-            out = F.max_pool2d(out, MP_SIZE)
-
-            out = F.conv2d(
-                out,
-                params['meta_learner.features.3.conv3.weight'],
-                params['meta_learner.features.3.conv3.bias'],
-                padding=1)
-            out = F.batch_norm(
-                out,
-                params['meta_learner.features.3.bn3.running_mean'],
-                params['meta_learner.features.3.bn3.running_var'],
-                params['meta_learner.features.3.bn3.weight'],
-                params['meta_learner.features.3.bn3.bias'],
-                momentum=1,
-                training=True)
-            out = F.relu(out, inplace=True)
-            out = F.max_pool2d(out, MP_SIZE)
+            out = X
+            for i in range(4):
+                out = F.conv2d(
+                    out,
+                    params['meta_learner.features.%d.conv%d.weight'%(i,i)],
+                    params['meta_learner.features.%d.conv%d.bias'%(i,i)],
+                    padding=1)
+                # NOTE we do not need to care about running_mean anv var since
+                # momentum=1.
+                out = F.batch_norm(
+                    out,
+                    params['meta_learner.features.%d.bn%d.running_mean'%(i,i)],
+                    params['meta_learner.features.%d.bn%d.running_var'%(i,i)],
+                    params['meta_learner.features.%d.bn%d.weight'%(i,i)],
+                    params['meta_learner.features.%d.bn%d.bias'%(i,i)],
+                    momentum=1,
+                    training=True)
+                out = F.relu(out, inplace=True)
+                out = F.max_pool2d(out, MP_SIZE)
 
             out = out.view(out.size(0), -1)
             out = F.linear(out, params['meta_learner.fc.weight'],
