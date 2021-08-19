@@ -157,8 +157,6 @@ if __name__ == '__main__':
     # Define the model and optimizer
     model = MetaLearner(args).to(args.device)
 
-    # phi = model.phi
-    
     meta_optimizer = torch.optim.Adam(model.parameters(), lr=args.meta_lr)
 
     # fetch loss function and metrics
