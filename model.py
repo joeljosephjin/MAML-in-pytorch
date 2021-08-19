@@ -135,23 +135,18 @@ def conv_block(index,
         ReLU
         MaxPool
     """
-    if pooling:
-        conv = nn.Sequential(
-            OrderedDict([
-                ('conv'+str(index), nn.Conv2d(in_channels, out_channels, \
-                    K_SIZE, padding=padding)),
-                ('bn'+str(index), nn.BatchNorm2d(out_channels, momentum=1, \
-                    affine=True)),
-                ('relu'+str(index), nn.ReLU(inplace=True)),
-                ('pool'+str(index), nn.MaxPool2d(MP_SIZE))
-            ]))
-    else:
-        conv = nn.Sequential(
-            OrderedDict([
+    seq_dict = OrderedDict([
                 ('conv'+str(index), nn.Conv2d(in_channels, out_channels, \
                     K_SIZE, padding=padding)),
                 ('bn'+str(index), nn.BatchNorm2d(out_channels, momentum=1, \
                     affine=True)),
                 ('relu'+str(index), nn.ReLU(inplace=True))
-            ]))
+            ])
+    if pooling:
+        seq_dict['pool'+str(index)] = nn.MaxPool2d(MP_SIZE)
+    conv = nn.Sequential(seq_dict)
     return conv
+
+class phiNet(nn.Module):
+    def __init__(self):
+        pass
