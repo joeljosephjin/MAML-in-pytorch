@@ -35,7 +35,7 @@ parser.add_argument('--num_query',default=10, type=int)
 parser.add_argument('--num_steps',default=100, type=int)
 parser.add_argument('--num_inner_tasks',default=8, type=int)
 parser.add_argument('--num_train_updates',default=1, type=int)
-parser.add_argument('--num_eval_updates',default=3, type=int)
+parser.add_argument('--num_eval_updates',default=1, type=int)
 parser.add_argument('--save_summary_steps',default=100, type=int)
 parser.add_argument('--num_workers',default=1, type=int)
 
