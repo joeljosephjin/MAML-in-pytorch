@@ -124,8 +124,10 @@ def train_and_evaluate(model,
             train_acc = train_metrics['accuracy']
             test_acc = test_metrics['accuracy']
 
-            wandb.log({"episode":episode, "test_acc":test_acc, "train_acc":train_acc,"test_loss":test_loss,"train_loss":train_loss})
-            print('episode: {:0.2f}, test_acc: {:0.2f}, train_acc: {:0.2f}, time: {:0.2f}, test_loss: {:0.2f}, train_loss: {:0.2f}'.format(episode, test_acc,train_acc,time()-start_time,test_loss,train_loss))
+            wandb.log({"episode":episode, "test_acc":test_acc, "train_acc":train_acc,\
+                        "test_loss":test_loss,"train_loss":train_loss})
+            print('episode: {:0.2f}, test_acc: {:0.2f}, train_acc: {:0.2f}, time: {:0.2f}, test_loss: {:0.2f}, train_loss: {:0.2f}'\
+                    .format(episode, test_acc,train_acc, time()-start_time,test_loss,train_loss))
             start_time = time()
 
 if __name__ == '__main__':
@@ -155,8 +157,6 @@ if __name__ == '__main__':
     # Define the model and optimizer
     model = MetaLearner(args).to(args.device)
 
-    # phi = model.phi
-    
     meta_optimizer = torch.optim.Adam(model.parameters(), lr=args.meta_lr)
 
     # fetch loss function and metrics
@@ -164,5 +164,4 @@ if __name__ == '__main__':
     model_metrics = metrics
 
     # Train the model
-    train_and_evaluate(model, meta_train_classes, meta_test_classes, task_type,
-                       meta_optimizer, loss_fn, args)
+    train_and_evaluate(model, meta_train_classes, meta_test_classes, task_type, meta_optimizer, loss_fn, args)
