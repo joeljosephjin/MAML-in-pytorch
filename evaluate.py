@@ -61,6 +61,5 @@ def evaluate(model, loss_fn, meta_classes, task_lr, task_type, metrics, args,
 
     # compute mean of all metrics in summary
     metrics_mean = {metric: np.mean([x[metric] for x in summ]) for metric in summ[0]}
-    metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in metrics_mean.items())
 
     return metrics_mean
