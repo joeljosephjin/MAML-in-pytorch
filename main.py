@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from model import MetaLearner
 from model import Net
+from model import phiNet
 from data.dataloader import split_omniglot_characters
 from data.dataloader import load_imagenet_images
 from data.dataloader import OmniglotTask
@@ -123,13 +124,10 @@ def train_and_evaluate(model,
             start_time = time()
 
 if __name__ == '__main__':
-    # Load the parameters from json file
     args = parser.parse_args()
 
-    # Use GPU if available
     args.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-    # Set the random seed for reproducible experiments
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
@@ -144,10 +142,12 @@ if __name__ == '__main__':
     else:
         raise ValueError("I don't know your dataset")
 
-    # Define the model and optimizer
     model = MetaLearner(args).to(args.device)
+    args.phi = True
+    if args.phi:
+        phi_net = phiNet(args.in_channels, args.num_classes, dataset=args.dataset)
+
     meta_optimizer = torch.optim.Adam(model.parameters(), lr=args.meta_lr)
     loss_fn = nn.NLLLoss()
 
-    # Train the model
     train_and_evaluate(model, meta_train_classes, meta_test_classes, task_type, meta_optimizer, loss_fn, args)

@@ -13,17 +13,13 @@ EPS = 1e-8  # epsilon for numerical stability
 
 
 class MetaLearner(nn.Module):
-    """
-    The class defines meta-learner for MAML algorithm.
-    Training details will be written in main.py.
-    TODO base-model invariant MetaLearner class
-    """
-
     def __init__(self, args):
         super(MetaLearner, self).__init__()
         self.args = args
         self.meta_learner = Net(
             args.in_channels, args.num_classes, dataset=args.dataset)
+        # self.phi_net = phiNet(
+        #     args.in_channels, args.num_classes, dataset=args.dataset)
 
     def forward(self, X, adapted_params=None):
         if adapted_params == None:
@@ -43,25 +39,7 @@ class MetaLearner(nn.Module):
 
 
 class Net(nn.Module):
-    """
-    The base CNN model for MAML for few-shot learning.
-    The architecture is same as of the embedding in MatchingNet.
-    """
-
     def __init__(self, in_channels, num_classes, dataset='Omniglot'):
-        """
-        self.net returns:
-            [N, 64, 1, 1] for Omniglot (28x28)
-            [N, 64, 5, 5] for miniImageNet (84x84)
-        self.fc returns:
-            [N, num_classes]
-        
-        Args:
-            in_channels: number of input channels feeding into first conv_block
-            num_classes: number of classes for the task
-            dataset: for the measure of input units for self.fc, caused by 
-                     difference of input size of 'Omniglot' and 'ImageNet'
-        """
         super(Net, self).__init__()
         self.in_channels = in_channels
         self.dataset = dataset
@@ -75,25 +53,13 @@ class Net(nn.Module):
             self.add_module('fc', nn.Linear(64, num_classes))
         elif dataset == 'ImageNet':
             self.add_module('fc', nn.Linear(64 * 5 * 5, num_classes))
-        else:
-            raise Exception("I don't know your dataset")
 
     def forward(self, X, params=None):
-        """
-        Args:
-            X: [N, in_channels, W, H]
-            params: a state_dict()
-        Returns:
-            out: [N, num_classes] unnormalized score for each class
-        """
         if params == None:
             out = self.features(X)
             out = out.view(out.size(0), -1)
             out = self.fc(out)
         else:
-            """
-            The architecure of functionals is the same as `self`.
-            """
             out = X
             for i in range(4):
                 out = F.conv2d(
@@ -121,20 +87,27 @@ class Net(nn.Module):
         out = F.log_softmax(out, dim=1)
         return out
 
+class phiNet(nn.Module):
+    def __init__(self, in_channels, num_classes, dataset='Omniglot'):
+        super(phiNet, self).__init__()
+        self.in_channels = in_channels
+        self.dataset = dataset
+        self.num_classes = num_classes
+        self.features = nn.Sequential(
+            conv_block(0, in_channels, padding=1, pooling=True),
+            conv_block(1, N_FILTERS, padding=1, pooling=True),
+            conv_block(2, N_FILTERS, padding=1, pooling=True),
+            conv_block(3, N_FILTERS, padding=1, pooling=True))
+        if dataset == 'Omniglot':
+            self.add_module('fc', nn.Linear(64, num_classes))
+        elif dataset == 'ImageNet':
+            self.add_module('fc', nn.Linear(64 * 5 * 5, num_classes))
 
 def conv_block(index,
                in_channels,
                out_channels=N_FILTERS,
                padding=0,
                pooling=True):
-    """
-    The unit architecture (Convolutional Block; CB) used in the modules.
-    The CB consists of following modules in the order:
-        3x3 conv, 64 filters
-        batch normalization
-        ReLU
-        MaxPool
-    """
     seq_dict = OrderedDict([
                 ('conv'+str(index), nn.Conv2d(in_channels, out_channels, \
                     K_SIZE, padding=padding)),
@@ -146,7 +119,3 @@ def conv_block(index,
         seq_dict['pool'+str(index)] = nn.MaxPool2d(MP_SIZE)
     conv = nn.Sequential(seq_dict)
     return conv
-
-class phiNet(nn.Module):
-    def __init__(self):
-        pass
