@@ -145,13 +145,12 @@ def conv_block(index,
                padding=0,
                pooling=True):
     seq_dict = OrderedDict([
-                ('conv'+str(index), nn.Conv2d(in_channels, out_channels, \
-                    K_SIZE, padding=padding)),
-                ('bn'+str(index), nn.BatchNorm2d(out_channels, momentum=1, \
-                    affine=True)),
+                ('conv'+str(index), nn.Conv2d(in_channels, out_channels, K_SIZE, padding=padding)),
+                ('bn'+str(index), nn.BatchNorm2d(out_channels, momentum=1, affine=True)),
                 ('relu'+str(index), nn.ReLU(inplace=True))
             ])
     if pooling:
         seq_dict['pool'+str(index)] = nn.MaxPool2d(MP_SIZE)
+    torch.nn.init.xavier_uniform_(seq_dict['conv'+str(index)].weight)
     conv = nn.Sequential(seq_dict)
     return conv

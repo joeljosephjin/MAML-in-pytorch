@@ -39,7 +39,7 @@ parser.add_argument('--num_train_updates',default=1, type=int)
 parser.add_argument('--num_eval_updates',default=1, type=int)
 parser.add_argument('--save_summary_steps',default=100, type=int)
 parser.add_argument('--num_workers',default=1, type=int)
-parser.add_argument('--phi',default=False, type=bool)
+parser.add_argument('--phi',default=False, action="store_true")
 
 
 def train_and_evaluate(models,
