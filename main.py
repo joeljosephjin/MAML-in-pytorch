@@ -39,6 +39,7 @@ parser.add_argument('--num_train_updates',default=1, type=int)
 parser.add_argument('--num_eval_updates',default=1, type=int)
 parser.add_argument('--save_summary_steps',default=100, type=int)
 parser.add_argument('--num_workers',default=1, type=int)
+parser.add_argument('--phi',default=False, type=bool)
 
 
 def train_and_evaluate(models,
@@ -116,10 +117,10 @@ def train_and_evaluate(models,
         # Evaluate model on new task
         # Evaluate on train and test dataset given a number of tasks (args.num_steps)
         if (episode + 1) % args.save_summary_steps == 0:
-            train_loss, train_acc = evaluate(model, loss_fn, meta_train_classes,
+            train_loss, train_acc = evaluate(models, loss_fn, meta_train_classes,
                             task_lr, task_type, args,
                             'train')
-            test_loss, test_acc = evaluate(model, loss_fn, meta_test_classes,
+            test_loss, test_acc = evaluate(models, loss_fn, meta_test_classes,
                                     task_lr, task_type, args,
                                     'test')
 
@@ -151,7 +152,7 @@ if __name__ == '__main__':
     model = MetaLearner(args).to(args.device)
     loss_fn = nn.NLLLoss()
 
-    args.phi = False
+    # args.phi = False
 
     meta_optimizer = torch.optim.Adam(model.parameters(), lr=args.meta_lr)
 

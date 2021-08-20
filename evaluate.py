@@ -6,7 +6,7 @@ from collections import OrderedDict
 from data.dataloader import fetch_dataloaders
 
 
-def evaluate(model, loss_fn, meta_classes, task_lr, task_type, args,
+def evaluate(models, loss_fn, meta_classes, task_lr, task_type, args,
              split):
     """
     Evaluate the model on `num_steps` batches.
@@ -27,6 +27,11 @@ def evaluate(model, loss_fn, meta_classes, task_lr, task_type, args,
     losses = []
     accs = []
 
+    model = models['model']
+    
+    if args.phi:
+        phi_net = models['phi_net']
+
     # compute metrics over the dataset
     for episode in range(args.num_steps):
         # Make a single task
@@ -40,15 +45,32 @@ def evaluate(model, loss_fn, meta_classes, task_lr, task_type, args,
         X_que, Y_que = X_que.to(args.device), Y_que.to(args.device)
 
         # Direct optimization
-        net_clone = copy.deepcopy(model)
-        optim = torch.optim.SGD(net_clone.parameters(), lr=task_lr)
+        # net_clone = copy.deepcopy(model)
+        adapted_params, adapted_state_dict = model.cloned_state_dict()
+        if args.phi:
+            phi_adapted_params, phi_adapted_state_dict = phi_net.cloned_state_dict()
+
+        # optim = torch.optim.SGD(net_clone.parameters(), lr=task_lr)
         for _ in range(args.num_eval_updates):
-            Y_sup_hat = net_clone(X_sup)
+            if args.phi:
+                Y_sup_hat = model(X_sup, adapted_state_dict, phi_adapted_state_dict)
+            else:
+                Y_sup_hat = model(X_sup, adapted_state_dict)
+
             loss = loss_fn(Y_sup_hat, Y_sup)
-            optim.zero_grad()
-            loss.backward()
-            optim.step()
-        Y_que_hat = net_clone(X_que)
+
+            grads = torch.autograd.grad(loss, adapted_params.values(), create_graph=True)
+            for (key, val), grad in zip(adapted_params.items(), grads):
+                adapted_params[key] = val - task_lr * grad
+                adapted_state_dict[key] = adapted_params[key]
+
+        # Y_que_hat = model(X_que)
+
+        if args.phi:
+            Y_que_hat = model(X_que, adapted_state_dict, phi_adapted_state_dict)
+        else:
+            Y_que_hat = model(X_que, adapted_state_dict)
+
         loss = loss_fn(Y_que_hat, Y_que)
 
         # extract data from torch Variable, move to cpu, convert to numpy arrays
