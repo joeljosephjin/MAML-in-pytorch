@@ -12,6 +12,7 @@ K_SIZE = 3  # size of kernel
 MP_SIZE = 2  # size of max pooling
 EPS = 1e-8  # epsilon for numerical stability
 
+softplus = torch.nn.Softplus()
 
 class MetaLearner(nn.Module):
     def __init__(self, args):
@@ -94,7 +95,7 @@ class Net(nn.Module):
                     padding=1)
                 ones = torch.ones_like(alpha)
                 mult_noise = Normal(alpha, ones).sample()
-                out = mu * mult_noise
+                out = mu * softplus(mult_noise)
                 out = F.batch_norm(
                     out,
                     params['meta_learner.features.%d.bn%d.running_mean'%(i,i)],
