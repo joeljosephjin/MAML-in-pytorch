@@ -14,6 +14,23 @@ EPS = 1e-8  # epsilon for numerical stability
 
 softplus = torch.nn.Softplus()
 
+
+
+def getBack(var_grad_fn):
+    print(var_grad_fn)
+    for n in var_grad_fn.next_functions:
+        if n[0]:
+            try:
+                tensor = getattr(n[0], 'variable')
+                print(n[0])
+                # print('Tensor with grad found:', tensor)
+                print('Tensor with grad found:')
+                # print(' - gradient:', tensor.grad)
+                print(' - gradient:')
+                print()
+            except AttributeError as e:
+                getBack(n[0])
+
 class MetaLearner(nn.Module):
     def __init__(self, args):
         super(MetaLearner, self).__init__()
@@ -98,6 +115,8 @@ class Net(nn.Module):
                 ones = torch.ones_like(alpha)
                 mult_noise = Normal(alpha, ones).sample()
                 out = mu * softplus(mult_noise)
+                getBack(out[0][0][0].grad_fn)
+                import sys; sys.exit(0)
                 out = F.batch_norm(
                     out,
                     self.state_dict()['features.%d.bn%d.running_mean'%(i,i)],
