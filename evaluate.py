@@ -48,12 +48,12 @@ def evaluate(models, loss_fn, meta_classes, task_lr, task_type, args,
         # net_clone = copy.deepcopy(model)
         adapted_params = model.cloned_state_dict()
         if args.phi:
-            phi_adapted_params, phi_adapted_state_dict = phi_net.cloned_state_dict()
+            phi_adapted_params = phi_net.cloned_state_dict()
 
         # optim = torch.optim.SGD(net_clone.parameters(), lr=task_lr)
         for _ in range(args.num_eval_updates):
             if args.phi:
-                Y_sup_hat = model(X_sup, adapted_state_dict, phi_adapted_state_dict)
+                Y_sup_hat = model(X_sup, adapted_params, phi_adapted_params)
             else:
                 Y_sup_hat = model(X_sup, adapted_params)
 
@@ -67,7 +67,7 @@ def evaluate(models, loss_fn, meta_classes, task_lr, task_type, args,
         # Y_que_hat = model(X_que)
 
         if args.phi:
-            Y_que_hat = model(X_que, adapted_state_dict, phi_adapted_state_dict)
+            Y_que_hat = model(X_que, adapted_params, phi_adapted_params)
         else:
             Y_que_hat = model(X_que, adapted_params)
 

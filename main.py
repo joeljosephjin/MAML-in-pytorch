@@ -42,6 +42,21 @@ parser.add_argument('--num_workers',default=1, type=int)
 parser.add_argument('--phi',default=False, action="store_true")
 
 
+def getBack(var_grad_fn):
+    print(var_grad_fn)
+    for n in var_grad_fn.next_functions:
+        if n[0]:
+            try:
+                tensor = getattr(n[0], 'variable')
+                print(n[0])
+                # print('Tensor with grad found:', tensor)
+                print('Tensor with grad found:')
+                # print(' - gradient:', tensor.grad)
+                print(' - gradient:')
+                print()
+            except AttributeError as e:
+                getBack(n[0])
+
 def train_and_evaluate(models,
                        meta_train_classes,
                        meta_test_classes,
@@ -78,12 +93,12 @@ def train_and_evaluate(models,
 
             adapted_params = model.cloned_state_dict()
             if args.phi:
-                phi_adapted_params, phi_adapted_state_dict = phi_net.cloned_state_dict()
+                phi_adapted_params = phi_net.cloned_state_dict()
                 # import sys; sys.exit(0)
 
             for _ in range(0, args.num_train_updates):
                 if args.phi:
-                    Y_sup_hat = model(X_sup, adapted_state_dict, phi_adapted_state_dict)
+                    Y_sup_hat = model(X_sup, adapted_params, phi_adapted_params)
                 else:
                     Y_sup_hat = model(X_sup, adapted_params)
                 loss = loss_fn(Y_sup_hat, Y_sup)
@@ -98,12 +113,17 @@ def train_and_evaluate(models,
             X_meta, Y_meta = X_meta.to(args.device), Y_meta.to(args.device)
 
             if args.phi:
-                Y_meta_hat = model(X_meta, adapted_state_dict, phi_adapted_state_dict)
+                Y_meta_hat = model(X_meta, adapted_params, phi_adapted_params)
             else:
                 Y_meta_hat = model(X_meta, adapted_params)
 
             accs.append(accuracy(Y_meta_hat.data.cpu().numpy(), Y_meta.data.cpu().numpy()))
             loss_t = loss_fn(Y_meta_hat, Y_meta)
+
+            # getBack(loss_t.grad_fn)
+            grad = torch.autograd.grad(loss_t, phi_adapted_params.values(), allow_unused=True)
+            print(grad)
+            import sys; sys.exit(0)
             meta_loss += loss_t
             
         meta_loss /= float(num_inner_tasks)
