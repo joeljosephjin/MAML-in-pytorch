@@ -79,6 +79,7 @@ def train_and_evaluate(models,
             adapted_params, adapted_state_dict = model.cloned_state_dict()
             if args.phi:
                 phi_adapted_params, phi_adapted_state_dict = phi_net.cloned_state_dict()
+                # import sys; sys.exit(0)
 
             for _ in range(0, args.num_train_updates):
                 if args.phi:
@@ -100,6 +101,7 @@ def train_and_evaluate(models,
                 Y_meta_hat = model(X_meta, adapted_state_dict, phi_adapted_state_dict)
             else:
                 Y_meta_hat = model(X_meta, adapted_state_dict)
+
             accs.append(accuracy(Y_meta_hat.data.cpu().numpy(), Y_meta.data.cpu().numpy()))
             loss_t = loss_fn(Y_meta_hat, Y_meta)
             meta_loss += loss_t
@@ -111,8 +113,21 @@ def train_and_evaluate(models,
             phi_optimizer.zero_grad()
         meta_loss.backward()
         meta_optimizer.step()
+
+        # if (episode + 1) % args.save_summary_steps == 0:
+        #     for name, param in phi_net.named_parameters():
+        #         if param.requires_grad:
+        #             print(name, param.data[0][0][0])
+        #             break
+
         if args.phi:
             phi_optimizer.step()
+
+        # if (episode + 1) % args.save_summary_steps == 0:
+        #     for name, param in phi_net.named_parameters():
+        #         if param.requires_grad:
+        #             print(name, param.data[0][0][0])
+        #             break
 
         # Evaluate model on new task
         # Evaluate on train and test dataset given a number of tasks (args.num_steps)
