@@ -46,7 +46,7 @@ def evaluate(models, loss_fn, meta_classes, task_lr, task_type, args,
 
         # Direct optimization
         # net_clone = copy.deepcopy(model)
-        adapted_params, adapted_state_dict = model.cloned_state_dict()
+        adapted_params = model.cloned_state_dict()
         if args.phi:
             phi_adapted_params, phi_adapted_state_dict = phi_net.cloned_state_dict()
 
@@ -55,21 +55,21 @@ def evaluate(models, loss_fn, meta_classes, task_lr, task_type, args,
             if args.phi:
                 Y_sup_hat = model(X_sup, adapted_state_dict, phi_adapted_state_dict)
             else:
-                Y_sup_hat = model(X_sup, adapted_state_dict)
+                Y_sup_hat = model(X_sup, adapted_params)
 
             loss = loss_fn(Y_sup_hat, Y_sup)
 
             grads = torch.autograd.grad(loss, adapted_params.values(), create_graph=True)
             for (key, val), grad in zip(adapted_params.items(), grads):
                 adapted_params[key] = val - task_lr * grad
-                adapted_state_dict[key] = adapted_params[key]
+                # adapted_state_dict[key] = adapted_params[key]
 
         # Y_que_hat = model(X_que)
 
         if args.phi:
             Y_que_hat = model(X_que, adapted_state_dict, phi_adapted_state_dict)
         else:
-            Y_que_hat = model(X_que, adapted_state_dict)
+            Y_que_hat = model(X_que, adapted_params)
 
         loss = loss_fn(Y_que_hat, Y_que)
 

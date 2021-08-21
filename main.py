@@ -76,7 +76,7 @@ def train_and_evaluate(models,
             X_sup, Y_sup = dl_sup.__iter__().next()
             X_sup, Y_sup = X_sup.to(args.device), Y_sup.to(args.device)
 
-            adapted_params, adapted_state_dict = model.cloned_state_dict()
+            adapted_params = model.cloned_state_dict()
             if args.phi:
                 phi_adapted_params, phi_adapted_state_dict = phi_net.cloned_state_dict()
                 # import sys; sys.exit(0)
@@ -85,13 +85,13 @@ def train_and_evaluate(models,
                 if args.phi:
                     Y_sup_hat = model(X_sup, adapted_state_dict, phi_adapted_state_dict)
                 else:
-                    Y_sup_hat = model(X_sup, adapted_state_dict)
+                    Y_sup_hat = model(X_sup, adapted_params)
                 loss = loss_fn(Y_sup_hat, Y_sup)
 
                 grads = torch.autograd.grad(loss, adapted_params.values(), create_graph=True)
                 for (key, val), grad in zip(adapted_params.items(), grads):
                     adapted_params[key] = val - task_lr * grad
-                    adapted_state_dict[key] = adapted_params[key]
+                    # adapted_state_dict[key] = adapted_params[key]
 
             dl_meta = dataloaders['meta']
             X_meta, Y_meta = dl_meta.__iter__().next()
@@ -100,7 +100,7 @@ def train_and_evaluate(models,
             if args.phi:
                 Y_meta_hat = model(X_meta, adapted_state_dict, phi_adapted_state_dict)
             else:
-                Y_meta_hat = model(X_meta, adapted_state_dict)
+                Y_meta_hat = model(X_meta, adapted_params)
 
             accs.append(accuracy(Y_meta_hat.data.cpu().numpy(), Y_meta.data.cpu().numpy()))
             loss_t = loss_fn(Y_meta_hat, Y_meta)

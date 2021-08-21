@@ -28,13 +28,13 @@ class MetaLearner(nn.Module):
         return out
 
     def cloned_state_dict(self):
-        adapted_state_dict = {key: val.clone() for key, val in self.state_dict().items()}
+        # adapted_state_dict = {key: val.clone() for key, val in self.state_dict().items()}
         adapted_params = OrderedDict()
         for key, val in self.named_parameters():
             adapted_params[key] = val
-            adapted_state_dict[key] = adapted_params[key]
+            # adapted_state_dict[key] = adapted_params[key]
 
-        return adapted_params, adapted_state_dict
+        return adapted_params
 
 
 class Net(nn.Module):
@@ -68,8 +68,10 @@ class Net(nn.Module):
                     padding=1)
                 out = F.batch_norm(
                     out,
-                    params['meta_learner.features.%d.bn%d.running_mean'%(i,i)],
-                    params['meta_learner.features.%d.bn%d.running_var'%(i,i)],
+                    self.state_dict()['features.%d.bn%d.running_mean'%(i,i)],
+                    self.state_dict()['features.%d.bn%d.running_var'%(i,i)],
+                    # params['meta_learner.features.%d.bn%d.running_mean'%(i,i)],
+                    # params['meta_learner.features.%d.bn%d.running_var'%(i,i)],
                     params['meta_learner.features.%d.bn%d.weight'%(i,i)],
                     params['meta_learner.features.%d.bn%d.bias'%(i,i)],
                     momentum=1,
@@ -151,6 +153,6 @@ def conv_block(index,
             ])
     if pooling:
         seq_dict['pool'+str(index)] = nn.MaxPool2d(MP_SIZE)
-    torch.nn.init.xavier_uniform_(seq_dict['conv'+str(index)].weight)
+    # torch.nn.init.xavier_uniform_(seq_dict['conv'+str(index)].weight)
     conv = nn.Sequential(seq_dict)
     return conv
