@@ -121,9 +121,9 @@ def train_and_evaluate(models,
             loss_t = loss_fn(Y_meta_hat, Y_meta)
 
             # getBack(loss_t.grad_fn)
-            grad = torch.autograd.grad(loss_t, phi_adapted_params.values(), allow_unused=True)
-            print(grad)
-            import sys; sys.exit(0)
+            # grad = torch.autograd.grad(loss_t, phi_adapted_params.values(), allow_unused=True)
+            # print(grad)
+            # import sys; sys.exit(0)
             meta_loss += loss_t
             
         meta_loss /= float(num_inner_tasks)

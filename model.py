@@ -113,10 +113,11 @@ class Net(nn.Module):
                     phi_params['features.%d.conv%d.bias'%(i,i)],
                     padding=1)
                 ones = torch.ones_like(alpha)
-                mult_noise = Normal(alpha, ones).sample()
+                # mult_noise = Normal(alpha, ones).sample()
+                mult_noise = alpha
                 out = mu * softplus(mult_noise)
-                getBack(out[0][0][0].grad_fn)
-                import sys; sys.exit(0)
+                # getBack(out[0][0][0].grad_fn)
+                # import sys; sys.exit(0)
                 out = F.batch_norm(
                     out,
                     self.state_dict()['features.%d.bn%d.running_mean'%(i,i)],
