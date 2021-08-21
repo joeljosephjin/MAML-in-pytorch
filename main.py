@@ -42,6 +42,19 @@ parser.add_argument('--num_workers',default=1, type=int)
 parser.add_argument('--phi',default=False, action="store_true")
 
 
+def getBack(var_grad_fn):
+    print(var_grad_fn)
+    for n in var_grad_fn.next_functions:
+        if n[0]:
+            try:
+                tensor = getattr(n[0], 'variable')
+                print(n[0])
+                print('Tensor with grad found:', tensor)
+                print(' - gradient:', tensor.grad)
+                print()
+            except AttributeError as e:
+                getBack(n[0])
+
 def train_and_evaluate(models,
                        meta_train_classes,
                        meta_test_classes,
@@ -79,6 +92,8 @@ def train_and_evaluate(models,
             adapted_params, adapted_state_dict = model.cloned_state_dict()
             if args.phi:
                 phi_adapted_params, phi_adapted_state_dict = phi_net.cloned_state_dict()
+                # getBack(phi_adapted_state_dict['features.2.conv2.weight'][0][0][0].grad_fn)
+                # getBack(adapted_state_dict['meta_learner.features.2.conv2.weight'][0][0][0].grad_fn)
                 # import sys; sys.exit(0)
 
             for _ in range(0, args.num_train_updates):
@@ -88,7 +103,10 @@ def train_and_evaluate(models,
                     Y_sup_hat = model(X_sup, adapted_state_dict)
                 loss = loss_fn(Y_sup_hat, Y_sup)
 
-                grads = torch.autograd.grad(loss, adapted_params.values(), create_graph=True)
+                print(list(adapted_state_dict.values())[0].grad_fn)
+
+                grads = torch.autograd.grad(loss, adapted_state_dict.values(), create_graph=True)
+                import sys; sys.exit(0)
                 for (key, val), grad in zip(adapted_params.items(), grads):
                     adapted_params[key] = val - task_lr * grad
                     adapted_state_dict[key] = adapted_params[key]
